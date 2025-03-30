@@ -1,0 +1,26 @@
+{
+  "name": "@reliverse/reinject",
+  "version": "1.0.0",
+  "description": "@reliverse/reinject handles the boring parts for you. For example: Got noisy TypeScript errors? It'll slide a // @ts-expect-error right where it needs to go.",
+  "type": "module",
+  "scripts": {
+    "dev": "bun src/main.ts --dev",
+    "typecheck": "tsc --noEmit",
+    "latest": "bun update --latest && bun check",
+    "check": "bun typecheck",
+    "agg": "relidler tools --tool agg --input src/libs/sdk/sdk-impl --out src/libs/sdk/sdk-main.ts --recursive --named --strip src/libs/sdk"
+  },
+  "dependencies": {
+    "@reliverse/prompts": "^1.6.0",
+    "c12": "^3.0.2",
+    "fs-extra": "^11.3.0",
+    "p-map": "^7.0.3",
+    "pathe": "^2.0.3",
+    "typescript": "^5.8.2"
+  },
+  "devDependencies": {
+    "@reliverse/cli-cfg": "^1.6.5",
+    "@reliverse/relidler-cfg": "^1.1.3",
+    "@types/fs-extra": "^11.0.4"
+  }
+}
