@@ -4,7 +4,7 @@
   "description": "@reliverse/reinject handles the boring parts for you. For example: Got noisy TypeScript errors? It'll slide a // @ts-expect-error right where it needs to go.",
   "type": "module",
   "scripts": {
-    "dev": "bun src/main.ts --dev",
+    "dev": "bun src/main.ts --dev tee auto --tscPaths examples/test-ts-expect-error.ts",
     "typecheck": "tsc --noEmit",
     "latest": "bun update --latest && bun check",
     "check": "bun typecheck",

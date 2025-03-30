@@ -33,6 +33,21 @@ async function loadReinjectConfig(): Promise<ReinjectUserConfig> {
 }
 
 //-------------------------------------
+// Helper: Parse command string into command and arguments
+//-------------------------------------
+function parseCommand(command: string): { cmd: string, args: string[] } {
+  // This parser splits the command by whitespace while handling double or single quotes.
+  const regex = /"([^"]+)"|'([^']+)'|(\S+)/g;
+  const args: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(command)) !== null) {
+    args.push(match[1] || match[2] || match[3]);
+  }
+  const cmd = args.shift() || "";
+  return { cmd, args };
+}
+
+//-------------------------------------
 // 3) parseLineRefs from a lines file
 //-------------------------------------
 async function parseLinesFile(linesFile: string) {
@@ -69,29 +84,25 @@ async function parseLinesFile(linesFile: string) {
 }
 
 //-------------------------------------
-// 4) parseTscErrors: run tsc with execa, parse error lines
+// 4) runTscAndParseErrors: run tsc with execa, parse error lines
 // Example TSC error line format:
 //   src/foo.ts(12,5): error TS2322:
-// We'll capture `src/foo.ts`, `12` as line
+// We'll capture `src/foo.ts` and `12` as the error line number
 //-------------------------------------
-async function runTscAndParseErrors(tscCommand: string): Promise<Array<{ filePath: string; lineNumber: number }>> {
-  // execa runs the command in a shell by default if we do e.g. { shell: true }
-  // But we can parse the normal stdout/stderr if we handle it ourselves.
+async function runTscAndParseErrors(tscCommand: string, tscPaths?: string[]): Promise<Array<{ filePath: string; lineNumber: number }>> {
   let linesRefs: Array<{ filePath: string; lineNumber: number }> = [];
 
   try {
-    // We expect TSC to fail if there are any errors, so we catch that in .catch
-    const { stdout, stderr } = await execa(tscCommand, {
-      shell: true, // shell mode to interpret the command
-      all: true,   // capture combined output in .all
-    });
+    // Parse the TSC command into the command and its arguments.
+    const { cmd, args: cmdArgs } = parseCommand(tscCommand);
+    // Append any additional paths (if provided) as extra arguments.
+    if (tscPaths && tscPaths.length > 0) {
+      cmdArgs.push(...tscPaths);
+    }
 
-    // Merge both stdout and stderr
-    const combinedOutput = [stdout, stderr].join("\n");
-
-    // typical line:
-    //   src/foo.ts(10,5): error TSxxxx ...
-    // or:   C:\abs\path\to\file.ts(35,12): error TS9999
+    // Run TSC.
+    const subprocess = await execa(cmd, cmdArgs, { all: true, reject: false });
+    const combinedOutput = subprocess.all || "";
     const splitted = combinedOutput.split(/\r?\n/);
     const regex = /^(.+?)\((\d+),(\d+)\): error TS\d+: /;
 
@@ -101,9 +112,8 @@ async function runTscAndParseErrors(tscCommand: string): Promise<Array<{ filePat
       if (m) {
         let file = m[1];
         const row = parseInt(m[2], 10);
-        // column = parseInt(m[3], 10);
         if (row > 0) {
-          // Convert Windows backslashes
+          // Normalize Windows paths.
           file = file.replace(/\\/g, "/");
           linesRefs.push({
             filePath: file,
@@ -113,14 +123,9 @@ async function runTscAndParseErrors(tscCommand: string): Promise<Array<{ filePat
       }
     }
   } catch (error: any) {
-    // TSC might fail with exit code 2 (or something else) if there are errors,
-    // so we parse from the error's output. execa's error object has .stdout/.stderr
-    // if we used all: true => .all
-    // if we used separate => error.stdout, error.stderr
-    // We'll handle it as below:
+    // In case of error, try to extract the output.
     const combined = (error.all as string) || "";
     if (!combined) {
-      // No output => maybe TSC succeeded or no errors
       relinka("info", `TSC returned no error lines. Possibly no TS errors?`);
       return [];
     }
@@ -145,13 +150,29 @@ async function runTscAndParseErrors(tscCommand: string): Promise<Array<{ filePat
 }
 
 //-------------------------------------
+// Helper: Check if file is within any of the provided directories
+//-------------------------------------
+function isWithin(filePath: string, dirs: string[]): boolean {
+  const absFile = path.resolve(filePath);
+  for (const dir of dirs) {
+    const absDir = path.resolve(dir);
+    // Ensure trailing separator for accurate prefix matching
+    const normalizedDir = absDir.endsWith(path.sep) ? absDir : absDir + path.sep;
+    if (absFile.startsWith(normalizedDir)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+//-------------------------------------
 // 5) The injection logic
 //-------------------------------------
 async function injectCommentIntoFiles(
-  linesRecords: Array<{filePath: string; lineNumber: number}>,
+  linesRecords: Array<{ filePath: string; lineNumber: number }>,
   commentText: string,
 ) {
-  // group by file
+  // Group error lines by file
   const byFile = new Map<string, number[]>();
   for (const rec of linesRecords) {
     if (!byFile.has(rec.filePath)) {
@@ -161,9 +182,8 @@ async function injectCommentIntoFiles(
   }
 
   for (const [filePath, lineNums] of byFile.entries()) {
-    // sort descending
-    lineNums.sort((a,b) => b - a);
-
+    // Sort descending so injections don't affect subsequent line numbers
+    lineNums.sort((a, b) => b - a);
     const absPath = path.resolve(filePath);
     relinka("info", `Injecting into ${absPath} at lines: ${lineNums.join(", ")}`);
 
@@ -188,15 +208,13 @@ async function injectCommentIntoFiles(
 //-------------------------------------
 // 6) The main usage function
 //-------------------------------------
-export async function useTsExpectError(args: { files: string[], comment?: string }) {
+export async function useTsExpectError(args: { files: string[], comment?: string, tscPaths?: string[] }) {
   // 1) load c12 config
   const userConfig = await loadReinjectConfig();
   const finalComment = args.comment || userConfig.injectComment!;
 
-  // gather references
-  const lines: Array<{filePath: string; lineNumber: number}> = [];
-
-  // if "auto" => run TSC
+  // Gather references
+  const lines: Array<{ filePath: string; lineNumber: number }> = [];
   let usedAuto = false;
   for (const item of args.files) {
     if (item.toLowerCase() === "auto") {
@@ -208,15 +226,21 @@ export async function useTsExpectError(args: { files: string[], comment?: string
     relinka("info", "Running TSC to discover error lines...");
     const tscCommand = userConfig.tscCommand!;
     try {
-      const discovered = await runTscAndParseErrors(tscCommand);
-      lines.push(...discovered);
+      const discovered = await runTscAndParseErrors(tscCommand, args.tscPaths);
+      // If tscPaths are provided, filter discovered errors to include only files within those paths.
+      if (args.tscPaths && args.tscPaths.length > 0) {
+        const filtered = discovered.filter(rec => isWithin(rec.filePath, args.tscPaths!));
+        lines.push(...filtered);
+      } else {
+        lines.push(...discovered);
+      }
     } catch (error) {
       relinka("error", `Failed running tsc: ${error}`);
       process.exit(1);
     }
   }
 
-  // parse lines from each file that isn't "auto"
+  // Parse lines from each file that isn't "auto"
   for (const item of args.files) {
     if (item.toLowerCase() === "auto") continue;
 
