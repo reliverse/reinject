@@ -15,6 +15,7 @@
         "@reliverse/cli-cfg": "latest",
         "@reliverse/relidler-cfg": "latest",
         "@types/fs-extra": "latest",
+        "@types/yoga-layout": "latest",
       },
     },
   },
@@ -56,6 +57,8 @@
     "@types/tinycolor2": ["@types/tinycolor2@1.4.6", "", {}, "sha512-iEN8J0BoMnsWBqjVbWH/c0G0Hh7O21lpR2/+PrvAVgWdzL7eexIFm4JN/Wn10PTcmNdtS6U67r499mlWMXOxNw=="],
 
     "@types/ws": ["@types/ws@8.18.0", "", { "dependencies": { "@types/node": "*" } }, "sha512-8svvI3hMyvN0kKCJMvTJP/x6Y/EoQbepff882wL+Sn5QsXb3etnamgrJq4isrBxSJj5L2AuXcI0+bgkoAXGUJw=="],
+
+    "@types/yoga-layout": ["@types/yoga-layout@1.9.7", "", {}, "sha512-TlYNIa9XHCGYRqVrijiDVj72Sc4Yd9At0NYEaHm8Su94GwcsXRq5y1AhA8tZUVNXYRCNpGWuOWI4VQ+R58MgUw=="],
 
     "ansi-escapes": ["ansi-escapes@7.0.0", "", { "dependencies": { "environment": "^1.0.0" } }, "sha512-GdYO7a61mR0fOlAsvC9/rIHf7L96sBc6dEWzeOu+KAea5bZyQRPIpojrVoI4AXGJS/ycu/fBTdLrUkA4ODrvjw=="],
 

@@ -21,6 +21,7 @@
   "devDependencies": {
     "@reliverse/cli-cfg": "^1.6.5",
     "@reliverse/relidler-cfg": "^1.1.3",
-    "@types/fs-extra": "^11.0.4"
+    "@types/fs-extra": "^11.0.4",
+    "@types/yoga-layout": "^1.9.7"
   }
 }

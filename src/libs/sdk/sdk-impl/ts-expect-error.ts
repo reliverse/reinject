@@ -254,6 +254,7 @@ export async function useTsExpectError(args: { files: string[], comment?: string
 
   if (lines.length === 0) {
     relinka("error", "No references found. Nothing to do.");
+    relinka("error", "Lines: ", JSON.stringify(lines));
     process.exit(1);
   }
 
